@@ -1,0 +1,360 @@
+/* -------------------- */
+/* --- filtr1_SSE.c --- */
+/* -------------------- */
+
+#include <stdio.h>
+#include <stdlib.h>
+
+// --- NRC Framework --- //
+#include "def.h"
+#include "nrutil.h"
+//#include "timers_b.h"
+// --- vNRC Framework --- //
+#include "vdef.h"
+#include "vnrutil.h"
+
+#include "mutil.h"
+
+
+#include "filtre1_SSE.h"
+
+/* ------------------------------------------------------------------------- */
+void add_vf32vector(vfloat32 *vX1, vfloat32 *vX2, int i0, int i1, vfloat32 *vY)
+/* ------------------------------------------------------------------------- */
+{
+    int i;
+    vfloat32 x1, x2, y;
+
+    for(i=i0; i<=i1; i++) {
+        
+        x1 = _mm_load_ps((float32*) &vX1[i]);
+        x2 = _mm_load_ps((float32*) &vX2[i]);
+        
+        y = _mm_add_ps(x1, x2);
+        
+        display_vfloat32(x1, "%4.0f", "x1 ="); puts("");
+        display_vfloat32(x2, "%4.0f", "x2 ="); puts("");
+        display_vfloat32(y,  "%4.0f", "y  ="); puts("");
+
+        _mm_store_ps((float*) &vY[i], y);
+        puts("-------------------");
+    }
+}
+/* --------------------------------------------------------------- */
+vfloat32 dot_vf32vector(vfloat32 *vX1, vfloat32 *vX2, int i0, int i1)
+/* --------------------------------------------------------------- */
+{
+
+	int i;
+    vfloat32 x1, x2, y;
+    vfloat32 z;
+
+    z = _mm_set_ps(0,0,0,0);
+
+	for(i=i0; i<=i1; i++) {
+        
+        x1 = _mm_load_ps((float32*) &vX1[i]);
+        x2 = _mm_load_ps((float32*) &vX2[i]);
+        
+        y = _mm_mul_ps(x1, x2);
+        z = _mm_add_ps(z, y);
+       
+    }
+	
+	
+	x1 = _mm_shuffle_ps(z,z,_MM_SHUFFLE(1,0,3,2));
+	
+	x2 = _mm_add_ps(z, x1);
+	
+	y = _mm_shuffle_ps(x2,x2,_MM_SHUFFLE(2,1,0,3));
+	
+	z = _mm_add_ps(y, x2);		
+
+    return z;
+}
+//la taille de x doit etre n+2
+/* ---------------------------------------------------------- */
+void sum3_vf32vector(vfloat32 *vX, int i0, int i1, vfloat32 *vY)
+/* ---------------------------------------------------------- */
+{
+	int i;
+    vfloat32 x1, x2, y;
+    vfloat32 z;
+
+    z = _mm_set_ps(0,0,0,0);
+   
+	for(i=i0; i<=i1; i++) {
+        
+        x1 = _mm_load_ps((float32*) &vX[i-1]);
+
+        x2 = _mm_load_ps((float32*) &vX[i]);		
+        
+        y = _mm_add_ps(x1, x2); // - - - -
+								//   - - - -
+		z = _mm_shuffle_ps(x1,x1,_MM_SHUFFLE(2,1,0,0));
+       
+        y = _mm_add_ps(z, y);
+
+        _mm_store_ps((float*) &vY[i], y);
+       
+    }
+}
+/* ---------------------------------------------------------- */
+void sum5_vf32vector(vfloat32 *vX, int i0, int i1, vfloat32 *vY)
+/* ---------------------------------------------------------- */
+{
+}
+/* ---------------------------------------------------------- */
+void min3_vf32vector(vfloat32 *vX, int i0, int i1, vfloat32 *vY)
+/* ---------------------------------------------------------- */
+{
+}
+/* ---------------------------------------------------------- */
+void min5_vf32vector(vfloat32 *vX, int i0, int i1, vfloat32 *vY)
+/* ---------------------------------------------------------- */
+{
+}
+
+/* ========================== */
+/* === Fonctions de tests === */
+/* ========================== */
+
+
+/* ---------------------------- */
+void test_add_dot_vf32vector(void)
+/* ---------------------------- */
+{
+    int n = 4*4;
+    int card; // cardinal of vector type
+
+    int si0, si1; // scalar indices
+    int vi0, vi1; // vector indices
+    int mi0, mi1; // memory (bounded) indices
+
+    vfloat32 *vX1, *vX2, *vY, d;
+
+    puts("------------------------------");
+    puts("-- test_add_dot_vf32vector ---");
+    puts("------------------------------");
+
+    // ------------------------- //
+    // -- calculs des indices -- //
+    // ------------------------- //
+
+    card = card_vfloat32();
+
+    si0 = 0;
+    si1 = n-1;
+    s2v1D(si0, si1, card, &vi0, &vi1);
+    v2m1D(vi0, vi1, card, &mi0, &mi1);
+    
+    // ------------------------------------------- //
+    // -- allocation des tableaux 1D vectoriels -- //
+    // ------------------------------------------- //
+
+    vX1 = vf32vector(vi0, vi1);
+    vX2 = vf32vector(vi0, vi1);
+    vY  = vf32vector(vi0, vi1);
+
+    // ---------- //
+    // -- init -- //
+    // ---------- //
+
+    init_vf32vector_param(vX1, vi0, vi1, 1, 1);
+    init_vf32vector_param(vX2, vi0, vi1, 1, 2);
+    zero_vf32vector(vY, vi0, vi1);
+
+    // --------------- //
+    // -- affichage -- //
+    // --------------- //
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vX1, si0, si1, "%4.0f", "sX1");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    display_vf32vector(vX1, vi0, vi1, "%4.0f", "vX1"); puts("");
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vX2, si0, si1, "%4.0f", "sX2");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    display_vf32vector(vX2, vi0, vi1, "%4.0f", "vX2"); puts("");
+
+    // ------------ //
+    // -- calcul -- //
+    // ------------ //
+
+    add_vf32vector(vX1, vX2, vi0, vi1, vY);
+    d = dot_vf32vector(vX1, vX2, vi0, vi1);
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vY, si0, si1, "%4.0f", "sY");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    display_vf32vector(vY, vi0, vi1, "%4.0f", "vY"); puts("");
+
+    display_vfloat32(d, "%6.0f ", "dot"); puts("");
+
+    // ---------- //
+    // -- free -- //
+    // ---------- //
+
+    free_vf32vector(vX1, vi0, vi1);
+    free_vf32vector(vX2, vi0, vi1);
+    free_vf32vector(vY,  vi0, vi1);
+}
+/* ------------------------ */
+void test_sum_vf32vector(void)
+/* ------------------------ */
+{
+    int n = 4*4;
+    int card; // cardinal of vector type
+
+    int si0, si1; // scalar indices
+    int vi0, vi1; // vector indices
+    int mi0, mi1; // memory (bounded) indices
+
+    vfloat32 *vX, *vY3, *vY5;
+
+    puts("--------------------------");
+    puts("-- test_sum_vf32vector ---");
+    puts("--------------------------");
+
+    // ------------------------- //
+    // -- calculs des indices -- //
+    // ------------------------- //
+
+    card = card_vfloat32();
+
+    si0 = 0;
+    si1 = n-1;
+    s2v1D(si0, si1, card, &vi0, &vi1);
+    v2m1D(vi0, vi1, card, &mi0, &mi1);
+    
+    // ------------------------------------------- //
+    // -- allocation des tableaux 1D vectoriels -- //
+    // ------------------------------------------- //
+
+    vX  = vf32vector(vi0, vi1);
+    vY3 = vf32vector(vi0, vi1);
+    vY5 = vf32vector(vi0, vi1);
+
+    // ---------- //
+    // -- init -- //
+    // ---------- //
+
+    init_vf32vector_param(vX, vi0, vi1, 1, 1);
+    zero_vf32vector(vY3, vi0, vi1);
+    zero_vf32vector(vY5, vi0, vi1);
+
+    // --------------- //
+    // -- affichage -- //
+    // --------------- //
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vX, si0, si1, "%4.0f", "sX1");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    //display_vf32vector(vX, vi0, vi1, "%4.0f", "vX"); puts("");
+
+    // ------------ //
+    // -- calcul -- //
+    // ------------ //
+
+    sum3_vf32vector(vX, vi0, vi1, vY3);
+    sum5_vf32vector(vX, vi0, vi1, vY5);
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vY3, si0, si1, "%4.0f", "sY3");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    //display_vf32vector(vY3, vi0, vi1, "%4.0f", "vY3"); puts("");
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vY5, si0, si1, "%4.0f", "sY5");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    //display_vf32vector(vY5, vi0, vi1, "%4.0f", "vY5"); puts("");
+
+    // ---------- //
+    // -- free -- //
+    // ---------- //
+
+    free_vf32vector(vX,  vi0, vi1);
+    free_vf32vector(vY3, vi0, vi1);
+    free_vf32vector(vY5, vi0, vi1);
+}
+/* ------------------------ */
+void test_min_vf32vector(void)
+/* ------------------------ */
+{
+    int n = 4*4;
+    int card; // cardinal of vector type
+
+    int si0, si1; // scalar indices
+    int vi0, vi1; // vector indices
+    int mi0, mi1; // memory (bounded) indices
+
+    vfloat32 *vX, *vY3, *vY5;
+
+    puts("--------------------------");
+    puts("-- test_min_vf32vector ---");
+    puts("--------------------------");
+
+    // ------------------------- //
+    // -- calculs des indices -- //
+    // ------------------------- //
+
+    card = card_vfloat32();
+
+    si0 = 0;
+    si1 = n-1;
+    s2v1D(si0, si1, card, &vi0, &vi1);
+    v2m1D(vi0, vi1, card, &mi0, &mi1);
+    
+    // ------------------------------------------- //
+    // -- allocation des tableaux 1D vectoriels -- //
+    // ------------------------------------------- //
+
+    vX  = vf32vector(vi0, vi1);
+    vY3 = vf32vector(vi0, vi1);
+    vY5 = vf32vector(vi0, vi1);
+
+    // ---------- //
+    // -- init -- //
+    // ---------- //
+
+    init_vf32vector_param(vX, vi0, vi1, 1, 2);
+    rand_f32vector((float32*) vX, si0, si1); // generateur de nombres aleatoires (congruence lineaire)
+    zero_vf32vector(vY3, vi0, vi1);
+    zero_vf32vector(vY5, vi0, vi1);
+
+    // --------------- //
+    // -- affichage -- //
+    // --------------- //
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vX, si0, si1, "%4.0f", "sX1");
+
+    // affichage par bloc SIMD: appel de la fonction SIMD
+    //display_vf32vector(vX, vi0, vi1, "%4.0f", "vX"); puts("");
+
+    // ------------ //
+    // -- calcul -- //
+    // ------------ //
+
+    min3_vf32vector(vX, vi0, vi1, vY3);
+    min5_vf32vector(vX, vi0, vi1, vY5);
+
+    // affichage classique sur une ligne: appel de la fonction scalaire
+    display_f32vector((float32*) vY3, si0, si1, "%4.0f", "sY3");
+    display_f32vector((float32*) vY5, si0, si1, "%4.0f", "sY5");
+
+    // ---------- //
+    // -- free -- //
+    // ---------- //
+
+    free_vf32vector(vX,  vi0, vi1);
+    free_vf32vector(vY3, vi0, vi1);
+    free_vf32vector(vY5, vi0, vi1);
+}
