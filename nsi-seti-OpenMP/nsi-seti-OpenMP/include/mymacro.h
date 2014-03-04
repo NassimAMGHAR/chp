@@ -9,8 +9,8 @@
 // activer ou desactiver le define ci-dessous pour passer
 // du mode de mise au point au mode benchmark
 
-//#define ENABLE_BENCHMARK
-#undef ENABLE_BENCHMARK
+#define ENABLE_BENCHMARK
+//#undef ENABLE_BENCHMARK
 
 // -------------------------------------------
 // -- ne rien ecrire en dessous de cette ligne

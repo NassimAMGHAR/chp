@@ -36,28 +36,33 @@ int mandelbrot_scalar(float a, float b, int max_iter)
     int iter = 0;
   
     // COMPLETER ICI
-    float x,t,t2,y,z;
+    float x,t,t2,y;
     x = 0.0f;
-    y = 0.0f;
-    z = 0.0f;
+    y = 0.0f;    
     t = 0.0f;
     t2= 0.0f;
     
-    while((t+t2 <= 4.0f) && (iter < max_iter)) {
+	//iteration 0
+  	y = 2*x*y + b;         
+    x = t - t2 + a;       	
+    t  = x*x; 
+    t2 = y*y; 
+    //calcul
+    while((iter < max_iter) && (t <= 4.0) ) {
 		
        t  = x*x; 
        t2 = y*y;             
-       t = t - t2 + a;       	
        y = 2*x*y + b;
-       x = t;
+	   x = t - t2 + a;      
+       t = t+t2;
+
        iter++;
-	}
-    
-
+	};
+    	
+    //cas non iter max
     if(iter < max_iter)
-       iter--;
-
-       
+		iter--;  
+ 
     return iter;
 }
 // ------------------------------
@@ -73,8 +78,10 @@ void test_mandelbrot_scalar(void)
     puts("------------------------------");
     // tests unitaire pour valider
     
-    x0 = -0.8; y0 = 0.3; iter = mandelbrot_scalar(x0, y0, max_iter); DEBUG(printf("(%4.2f %4.2f) -> %3d\n", x0, y0, iter));
-    x0 = -0.7; y0 = 0.2; iter = mandelbrot_scalar(x0, y0, max_iter); DEBUG(printf("(%4.2f %4.2f) -> %3d\n", x0, y0, iter));
+    x0 = -1.0; y0 = +0.4; iter = mandelbrot_scalar(x0, y0, max_iter); DEBUG(printf("(%4.2f %4.2f) -> %3d\n", x0, y0, iter));
+    x0 = -0.9; y0 = +0.3; iter = mandelbrot_scalar(x0, y0, max_iter); DEBUG(printf("(%4.2f %4.2f) -> %3d\n", x0, y0, iter));
+	x0 = -0.8; y0 = +0.3; iter = mandelbrot_scalar(x0, y0, max_iter); DEBUG(printf("(%4.2f %4.2f) -> %3d\n", x0, y0, iter));
+    x0 = -0.7; y0 = +0.1; iter = mandelbrot_scalar(x0, y0, max_iter); DEBUG(printf("(%4.2f %4.2f) -> %3d\n", x0, y0, iter));
 }
 // --------------------------------------------------------------
 vuint32 mandelbrot_SIMD_F32(vfloat32 a, vfloat32 b, int max_iter)
@@ -85,45 +92,57 @@ vuint32 mandelbrot_SIMD_F32(vfloat32 a, vfloat32 b, int max_iter)
     vuint32   iter  = _mm_set1_epi32(0);
     vfloat32  fiter = _mm_set_ps(0,0,0,0);
 
-    vfloat32 x,y,t,t2,t3,un,deux,quatre; 
+    vfloat32 x,y,t,t2,zero,un,deux,quatre; 
     // COMPLETER ICI
     int test,i = 0;
-    
+    // initialisation des variables
     x      = _mm_set_ps(0,0,0,0);    
     y      = _mm_set_ps(0,0,0,0);
     deux   = _mm_set_ps(2,2,2,2);
     quatre = _mm_set_ps(4,4,4,4);
     un     = _mm_set_ps(1,1,1,1);
+    zero   = _mm_set_ps(0,0,0,0);
+    
+    // iteration zero
+	t  = _mm_mul_ps(x, x);
+	t2 = _mm_mul_ps(y, y);
+	         
+	y  = _mm_mul_ps(x,y);
+	y  = _mm_mul_ps(y,deux);
+	y  = _mm_add_ps(y,b);
 
-	int boucle = 1;
+	x = _mm_sub_ps(t,t2);
+	x = _mm_add_ps(x,a);
+    
+    // calcul
+    while(i<max_iter && _mm_movemask_ps(t) != 15){   
+	    
 
-    while(boucle){   
-			i+=1;
-
-			t  = _mm_mul_ps(x, x);
-            t2 = _mm_mul_ps(y, y);
-            				
-
-            t3  = _mm_sub_ps(t,t2);
-			t3   = _mm_add_ps(x,a);
+	    t  = _mm_mul_ps(x, x);
+        t2 = _mm_mul_ps(y, y);
               
-			y  = _mm_mul_ps(x,y);
-            y  = _mm_mul_ps(y,deux);
-			y  = _mm_add_ps(y,b);
+	    y  = _mm_mul_ps(_mm_mul_ps(x,y),deux);        
+	    y  = _mm_add_ps(y,b);
 
-			x  = t3; 	
+	    x = _mm_sub_ps(t,t2);
+	    x = _mm_add_ps(x,a);	
 
-			t3 = _mm_cmple_ps(_mm_mul_ps(t,t2),quatre); 
+	    t2 = _mm_add_ps(t,t2);
+	    
+	    t2 = _mm_cmple_ps(t2,quatre); 
  			
-			t = _mm_andnot_ps(t3,un);
+	    t = _mm_blendv_ps(zero,un,t2);
 			
-			fiter = _mm_add_ps(fiter,t);		
+	    fiter = _mm_add_ps(fiter,t);		
 			
-			
-			if(i>=max_iter) 	
-				boucle=0;
+	    t = _mm_cmpeq_ps(t, zero);
+	    //display_vfloat32(t,"%f\t","T :: ");
+	    //printf(" MASK::%d \n",_mm_movemask_ps(t));
+	    
+	    i+=1;
   	}
  	
+	
 	iter = _mm_cvtps_epi32(fiter);
 
     return iter;
@@ -135,7 +154,59 @@ vuint32 mandelbrot_SIMD_I32(vfloat32 a, vfloat32 b, int max_iter)
     // version avec test de sortie en int
     
     vuint32 iter = _mm_set1_epi32(0);
+    vuint32 temp = _mm_set1_epi32(0); 
+	vuint32 un = _mm_set1_epi32(1);
+
+	vfloat32 x,y,t,t2,zero,deux,quatre; 
+    // COMPLETER ICI
+    int test = 0,i = 0;
+    // initialisation des variables
+    x      = _mm_set_ps(0,0,0,0);    
+    y      = _mm_set_ps(0,0,0,0);
+    deux   = _mm_set_ps(2,2,2,2);
+    quatre = _mm_set_ps(4,4,4,4);
+       
+
+    // iteration zero
+	t  = _mm_mul_ps(x, x);
+	t2 = _mm_mul_ps(y, y);
+	         
+	y  = _mm_mul_ps(x,y);
+	y  = _mm_mul_ps(y,deux);
+	y  = _mm_add_ps(y,b);
+
+	x = _mm_sub_ps(t,t2);
+	x = _mm_add_ps(x,a);
     
+    // calcul
+    while(i<max_iter && test ==0 ){   
+	    
+
+	    t  = _mm_mul_ps(x, x);
+        t2 = _mm_mul_ps(y, y);
+              
+	    y  = _mm_mul_ps(_mm_mul_ps(x,y),deux);        
+	    y  = _mm_add_ps(y,b);
+
+	    x = _mm_sub_ps(t,t2);
+	    x = _mm_add_ps(x,a);	
+
+	    t2 = _mm_add_ps(t,t2);
+	    
+	    t2 = _mm_cmple_ps(t2,quatre); 
+ 			
+	    temp = _mm_and_si128(un,_mm_castps_si128(t2));
+			
+        iter = _mm_add_epi32(iter,temp);		
+			
+	    test = _mm_test_all_zeros(temp, un);
+	    //display_vuint32(temp,"%d\t","T :: ");
+	    //printf(" MASK::%d \n",_mm_movemask_ps(temp));
+	    
+	    i+=1;
+  	}
+ 	
+	
     return iter;
 }
 // ----------------------------
@@ -154,7 +225,7 @@ void test_mandelbrot_SIMD(void)
     a = _mm_setr_ps(-0.8, -0.7, -0.8, -0.7);
     b = _mm_setr_ps(+0.3, +0.2, -0.3, -0.2);
         
-    iter = 15;
+    iter = 20;
     puts("mandelbrot_SIMD_F32");
     a = _mm_setr_ps(-1.00, -0.90, -0.80, -0.70);
     b = _mm_setr_ps(+0.40, +0.30, +0.30, +0.10);
@@ -187,7 +258,7 @@ void calc_mandelbrot_scalar(uint32 **M, int h, int w, float a0, float a1, float 
     
 #ifdef OPENMP
 // COMPLETER ICI
-#pragma omp parallel for schedule(dynamic)
+//#pragma omp parallel for schedule(dynamic)
 #endif   
     
     for(i=0; i<h; i++) {
@@ -220,6 +291,7 @@ void calc_mandelbrot_SIMD_F32(vuint32 **M, int h, int w, float a0, float a1, flo
 
 #ifdef OPENMP
     // COMPLETER ICI
+//#pragma omp parallel for schedule(dynamic)
 #endif   
 
     for(i=0; i<h; i++) {
@@ -253,7 +325,7 @@ void calc_mandelbrot_SIMD_I32(vuint32 **M, int h, int w, float a0, float a1, flo
 
 #ifdef OPENMP
     // COMPLETER ICI
-    
+//#pragma omp parallel for schedule(dynamic)   
 #endif   
 
     for(i=0; i<h; i++) {
